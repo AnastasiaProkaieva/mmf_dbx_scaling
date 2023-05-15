@@ -16,8 +16,8 @@
 
 # COMMAND ----------
 
-from Engie_code_Forecasting import wrapper_pygam
-from Engie_code_Forecasting.aux_scripts import *
+from ServingForecasting import wrapper_pygam
+from ServingForecasting.aux_scripts import *
 
 # COMMAND ----------
 
@@ -147,6 +147,13 @@ def fit_final_model_udf(df_pandas: pd.DataFrame) -> pd.DataFrame:
     "Date", "Sales", "StateHoliday", "SchoolHoliday" -> Columns that will be used for Training
     "run_id", "experiment_id" -> Column that are necessary for logging under MLFlow Artifact 
     
+    NOTE: 
+    In our case we are using a very simple model - PyGam Linear, it does not contain parameters,
+    hence we may not even care of logging the model into the mlflow for each fit.
+    The only what we need to keep track is the version of the package under. 
+    Nevertheless we are going to demonstrate how this can be done if you require to run a more complex model,
+    e.g. Prophet, XgBoost, SKTime etc
+
     """
     from ServingForecasting import wrapper_pygam
     model = wrapper_pygam.ForecastingModel()    
@@ -180,10 +187,11 @@ def fit_final_model_udf(df_pandas: pd.DataFrame) -> pd.DataFrame:
             mlflow.log_param(f"model_trained", date.today())
             # pay attention that the artifact you are writting is the same as your model
             artifact_uri = f"runs:/{run.info.run_id}/{artifact_name}"
-            # Create a return pandas DataFrame that matches the schema above
            
     # we are going to encode our model 
     model_encoder = str(urlsafe_b64encode(pickle.dumps(model)).decode("utf-8"))
+
+    # Create a return pandas DataFrame that matches the schema above
     returnDF = pd.DataFrame(
         [[store, horizon, n_used, artifact_uri, model_encoder]],
         columns=["Store", "Horizon", "n_used", "model_path", "encode_model"],)
@@ -283,7 +291,7 @@ def apply_model_decode(df_pandas: pd.DataFrame) -> pd.DataFrame:
 # COMMAND ----------
 
 predictionsDF = (forecast_df.groupBy("Store")
-                 .applyInPandas(apply_model_decode, schema="Store string, Date string, Sales_Pred float"))
+                 .applyInPandas(apply_model_decode, schema="Store string, Horizon integer, Date string, Sales_Pred float"))
 display(predictionsDF)
 
 # COMMAND ----------
@@ -326,7 +334,8 @@ class MultiModelPyfunc(mlflow.pyfunc.PythonModel):
     def select_model(self, model_input):
         if not isinstance(model_input, pd.DataFrame):
             raise ValueError("Sample model requires Dataframe inputs")
-        locale_id = model_input["Store"].iloc[0]  # getting the model id from the Store name
+        #locale_id = model_input["Store"].iloc[0]  # getting the model id from the Store name
+        locale_id = f'{model_input["Store"].iloc[0]}_{model_input["Horizon"].iloc[0]}'  # getting the model id from the Store name
         return locale_id
 
     def predict(self, context, raw_input):
@@ -340,7 +349,7 @@ class MultiModelPyfunc(mlflow.pyfunc.PythonModel):
         # we are here creating a DF for an expected income
         # if you want to retrain the model - place this under Try and add another one on except side
         model_input = pd.DataFrame(
-            raw_input, columns=["Store", "Date", "StateHoliday", "SchoolHoliday"]
+            raw_input, columns=["Store", "Horizon", "Date", "StateHoliday", "SchoolHoliday"]
         )
         model_input["StateHoliday"] = model_input["StateHoliday"].astype("bool")
         model_input["SchoolHoliday"] = model_input["SchoolHoliday"].astype("bool")
@@ -350,6 +359,13 @@ class MultiModelPyfunc(mlflow.pyfunc.PythonModel):
             selected_store = self.select_model(model_input)
             print(f"Selected model {selected_store}")
             model_context = self.models_context_dict[str(selected_store)]
+            # TO DO 
+            # here add a part so that a model would be loaded and kep in a memory if it was already called
+            # MOCK example 
+            # if str(selected_store) not in self.models
+            #     self.models[str(selected_store)] = pickle.loads(urlsafe_b64decode(model_context.encode("utf-8")))
+            # models = self.models[str(selected_store)]
+
             model = pickle.loads(urlsafe_b64decode(model_context.encode("utf-8")))
             return model.predict(None, model_input)
         except:
@@ -359,14 +375,29 @@ class MultiModelPyfunc(mlflow.pyfunc.PythonModel):
 
 # COMMAND ----------
 
-import json 
+# MAGIC %sh
+# MAGIC # make sure you have your folder created where you store your json with all artifacts  
+# MAGIC mkdir /dbfs/tmp/ap/
+
+# COMMAND ----------
+
 # getting files from the artifact 
 # we are going to place the dict into the artifact and will extract objects of the model form the dict per store 
-df_stores_models = forecast_df.select("Store","encode_model").distinct().toPandas()
-dict_stores_models = dict(df_stores_models[["Store","encode_model"]].values)
+df_stores_models = forecast_df.select("Store", "Horizon", "encode_model").distinct().toPandas()
+new_column = [ new_index = f'{df_stores_models["Store"].iloc[il]}_{str(df_stores_models["Horizon"].iloc[il])}' for il in range(len(df_stores_models["Store"]))]
+df_stores_models["Store_Horizon"] = new_column
+# create key pair value Store_Horizon : model_input 
+# if have a more complex index - need to create a composite Store_Horizon index 
 # need to convert dict or to the file or to the JSON as a string to pass under artifacts 
-with open('/dbfs/tmp/ap/json_data.json', 'w') as outfile:
+dict_stores_models = dict(df_stores_models[["Store_Horizon","encode_model"]].values) # check if this work 
+
+import json 
+with open(f'/dbfs/tmp/ap/json_data_artifact_date{date_now_str}.json', 'w') as outfile:
     json.dump(dict_stores_models, outfile)
+
+# COMMAND ----------
+
+# MAGIC %sh ls /dbfs/tmp/ap/
 
 # COMMAND ----------
 
@@ -380,7 +411,7 @@ with mlflow.start_run() as run:
     model_info = mlflow.pyfunc.log_model(
                                           "augmented-fct-model-pygam",
                                           python_model=MultiModelPyfunc(),
-                                          artifacts={"models_encoded": "/dbfs/tmp/ap/json_data.json"},
+                                          artifacts={"models_encoded": "/dbfs/tmp/ap/json_data_artifact_date2023_05_15.json"},
                                         )
     print("Your Run ID is: ", run.info.run_id)
     
@@ -395,10 +426,26 @@ with mlflow.start_run() as run:
 
 # COMMAND ----------
 
+# Select id's per store and horizon
 store_id = 339
-store_df_train = train_sales.filter(f"Store == {store_id}").toPandas()
-store_df_test = test_sales.filter(f"Store == {store_id}").drop("Sales").toPandas()
-model = mlflow.pyfunc.load_model(f'runs:/{run.info.run_id}/raw-model-pygam-wrapper')
+horizon_id = 1
+store_df_test = (
+    forecast_df
+    .filter(f"Store == {store_id}")
+    .filter(f"Horizon == {horizon_id}")
+    .drop("Sales","n_used","encode_model","model_path")
+    .toPandas()
+                )
+
+# load and score wrapped model 
+# TO DO 
+## REMOVE HERE RUN ID ? 
+try:
+    model = mlflow.pyfunc.load_model(f'runs:/{run.info.run_id}/augmented-fct-model-pygam')
+except:
+    #afbcd5b196a44f8f9bf70b104f872a85
+    model = mlflow.pyfunc.load_model('runs:/afbcd5b196a44f8f9bf70b104f872a85/augmented-fct-model-pygam')
+
 model.predict(store_df_test.values)
 
 # COMMAND ----------
@@ -414,11 +461,6 @@ model.predict(store_df_test.values)
 
 # COMMAND ----------
 
-#prepare_mock_dataset is from aux_code 
-data_to_encode = prepare_mock_dataset(store_df_train)
-
-# COMMAND ----------
-
 import json 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -426,8 +468,11 @@ class NumpyEncoder(json.JSONEncoder):
             return obj.tolist()
         return json.JSONEncoder.default(self, obj)
  
+
+# ADD A PARSING FUNCTION from Datatime to STR (in real time we will pass a string but our input data as of now is a datetime object)
+store_df_test["Date"] = store_df_test["Date"].astype("str")
 # keep attention that you require a numpy array for data_to_encode
-json_dump = json.dumps(data_to_encode, cls=NumpyEncoder) 
+json_dump = json.dumps(store_df_test.values, cls=NumpyEncoder) 
  
 ds_dict_testing = {
   "dataframe_split": {
@@ -445,58 +490,29 @@ model.predict(pd.DataFrame(eval(data_json)["dataframe_split"]['data']))
 
 # COMMAND ----------
 
-from Engie_code_Forecasting.aux_scripts import *
- 
+from ServingForecasting.aux_scripts import *
 token = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().getOrElse(None)
+url = 'https://e2-demo-field-eng.cloud.databricks.com/serving-endpoints/serving_pygam_wrapper/invocations'
 
 
-def score_model(ds_dict, token, model_point_name):
-  url = f'https://e2-dogfood.staging.cloud.databricks.com/serving-endpoints/{model_point_name}/invocations'
+# COMMAND ----------
+
+# token = "PLACE YOUR TOKEN HERE"
+# url = "PLACE YOUR MODEL INVOCATION LINK HERE"
+
+def score_model(ds_dict, token, url):
   headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
   ds_dict_testing = json.dumps(ds_dict, allow_nan=True)
-  #print(ds_dict_testing)
   response = requests.request(method='POST', headers=headers, url=url, data=ds_dict)
- 
   if response.status_code != 200:
     raise Exception(f'Request failed with status {response.status_code}, {response.text}')
   return response.json()
 
-score_model(ds_dict_testing, token, "model_serving_point_pygam")
+#score_model(ds_dict_testing, token, "model_serving_point_pygam")
 
 # COMMAND ----------
 
 
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-# return serialized Model to Delta from -> model.fit(X) pkl.serialize() -> binary -> base64 
-# Delta-> dict -> JSON file under artifact load from context get BASE64 -> decode 64 -> 
-# 
-# 
-
-# COMMAND ----------
-
-import pickle
-import json
-from base64 import urlsafe_b64decode, urlsafe_b64encode
-testing_encoder = urlsafe_b64encode(pickle.dumps(model_wrapper)).decode("utf-8")
-testing_decoder = pickle.loads(urlsafe_b64decode(testing_encoder.encode("utf-8")))
 
 # COMMAND ----------
 
