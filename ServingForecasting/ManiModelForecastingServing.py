@@ -495,15 +495,12 @@ model.predict(pd.DataFrame(eval(data_json)["dataframe_split"]['data']))
 
 # COMMAND ----------
 
-from ServingForecasting.aux_scripts import *
-token = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().getOrElse(None)
-url = 'https://e2-demo-field-eng.cloud.databricks.com/serving-endpoints/serving_pygam_wrapper/invocations'
-
-
-# COMMAND ----------
-
+## To genrate a PAT token you should have a permission - ask your admin to generate you one 
 # token = "PLACE YOUR TOKEN HERE"
+## Example of a Invocation link(taken from the UI or API call for Serving Enablement)
+## https://YOUR_DATABRICKS_WORKSPACE_DOMAIN/serving-endpoints/YOUR_ENDPOINT_NAME/invocations
 # url = "PLACE YOUR MODEL INVOCATION LINK HERE"
+
 
 def score_model(ds_dict, token, url):
   headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
