@@ -359,13 +359,6 @@ class MultiModelPyfunc(mlflow.pyfunc.PythonModel):
             selected_store = self.select_model(model_input)
             print(f"Selected model {selected_store}")
             model_context = self.models_context_dict[str(selected_store)]
-            # TO DO 
-            # here add a part so that a model would be loaded and kep in a memory if it was already called
-            # MOCK example 
-            # if str(selected_store) not in self.models
-            #     self.models[str(selected_store)] = pickle.loads(urlsafe_b64decode(model_context.encode("utf-8")))
-            # models = self.models[str(selected_store)]
-
             model = pickle.loads(urlsafe_b64decode(model_context.encode("utf-8")))
             return model.predict(None, model_input)
         except:
@@ -510,11 +503,7 @@ def score_model(ds_dict, token, url):
     raise Exception(f'Request failed with status {response.status_code}, {response.text}')
   return response.json()
 
-#score_model(ds_dict_testing, token, "model_serving_point_pygam")
-
-# COMMAND ----------
-
-
+score_model(ds_dict_testing, token, "model_serving_point_pygam")
 
 # COMMAND ----------
 
