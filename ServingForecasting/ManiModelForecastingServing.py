@@ -6,7 +6,7 @@
 # MAGIC If you would like to know how to get your data directly from kaggle page using thier API and ingest it into Delta Table on Databricks  check the notebook attached to it `get_data`.
 # MAGIC
 # MAGIC In order to run the notebook on Databricks you require the following:
-# MAGIC - DBR ML 12.2 with multi node (my cluster configuration is 4 nodes 16 CPU each)
+# MAGIC - DBR ML 12.2 with multi node (my cluster configuration is 4 nodes 8 CPU each)
 # MAGIC - being able to install pygam library with pip 
 
 # COMMAND ----------
