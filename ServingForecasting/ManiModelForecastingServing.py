@@ -467,7 +467,8 @@ class NumpyEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
  
 
-# ADD A PARSING FUNCTION from Datatime to STR (in real time we will pass a string but our input data as of now is a datetime object)
+# Adding a parsing functionfrom datetime to a  string 
+# in real time we will pass a string but our input data as of now is a datetime object
 store_df_test["Date"] = store_df_test["Date"].astype("str")
 # keep attention that you require a numpy array for data_to_encode
 json_dump = json.dumps(store_df_test.values, cls=NumpyEncoder) 
