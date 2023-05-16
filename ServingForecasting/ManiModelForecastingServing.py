@@ -384,7 +384,7 @@ class MultiModelPyfunc(mlflow.pyfunc.PythonModel):
 # getting files from the artifact 
 # we are going to place the dict into the artifact and will extract objects of the model form the dict per store 
 df_stores_models = forecast_df.select("Store", "Horizon", "encode_model").distinct().toPandas()
-new_column = [ new_index = f'{df_stores_models["Store"].iloc[il]}_{str(df_stores_models["Horizon"].iloc[il])}' for il in range(len(df_stores_models["Store"]))]
+new_column = [f'{df_stores_models["Store"].iloc[il]}_{str(df_stores_models["Horizon"].iloc[il])}' for il in range(len(df_stores_models["Store"]))]
 df_stores_models["Store_Horizon"] = new_column
 # create key pair value Store_Horizon : model_input 
 # if have a more complex index - need to create a composite Store_Horizon index 
