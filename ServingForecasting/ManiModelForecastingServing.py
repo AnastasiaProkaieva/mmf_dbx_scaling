@@ -1,5 +1,4 @@
 # Databricks notebook source
-# DBTITLE 0,kirjjbhgthkbdlkrnjulvulergujbgljdnb
 # MAGIC %md 
 # MAGIC # Description 
 # MAGIC This is an example use case how to forecast and serve multiple independent models under 1 endpoint on Databricks Serving Endpoints. 
