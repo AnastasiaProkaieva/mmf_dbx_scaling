@@ -21,13 +21,13 @@ from ServingForecasting.aux_scripts import *
 
 # COMMAND ----------
 
-display(spark.read.table("hive_metastore.ap.hack_ap_rossmann_time_series"))
+display(spark.read.table("hive_metastore.ap.hack_ap_rossmann_blog"))
 
 # COMMAND ----------
 
 salesDF = (spark.read.table("hive_metastore.ap.hack_ap_rossmann_time_series")
                 .dropDuplicates()# dropping duplicates if any
-                .select("Store", "Date","Sales-1","StateHoliday","SchoolHoliday")# selecting columns of interest 
+                .select("Store", "Date", "Sales-1", "StateHoliday", "SchoolHoliday")# selecting columns of interest 
                 .withColumnRenamed("Sales-1","Sales")# renaming a column 
           )
           
@@ -260,7 +260,7 @@ display(combinedDF)
 
 # COMMAND ----------
 
-combinedDF.write.format("delta").mode("overwrite").option("overwriteSchema","true").saveAsTable("hive_metastore.ap.hack_ap_rossmann_ts_predictions_pygam")
+combinedDF.write.format("delta").mode("overwrite").option("overwriteSchema","true").saveAsTable("hive_metastore.ap.hack_ap_rossmann_blog_predictions_pygam")
 
 # COMMAND ----------
 
@@ -270,7 +270,7 @@ combinedDF.write.format("delta").mode("overwrite").option("overwriteSchema","tru
 # COMMAND ----------
 
 # Reading Back forecasted objects 
-forecast_df = spark.read.table("hive_metastore.ap.hack_ap_rossmann_ts_predictions_pygam")
+forecast_df = spark.read.table("hive_metastore.ap.hack_ap_rossmann_blog_predictions_pygam")
 display(forecast_df)
 
 # COMMAND ----------
@@ -375,9 +375,9 @@ class MultiModelPyfunc(mlflow.pyfunc.PythonModel):
 
 # COMMAND ----------
 
-# MAGIC %sh
-# MAGIC # make sure you have your folder created where you store your json with all artifacts  
-# MAGIC mkdir /dbfs/tmp/ap/
+# %sh
+# # make sure you have your folder created where you store your json with all artifacts  
+# mkdir /dbfs/tmp/ap/
 
 # COMMAND ----------
 
@@ -397,27 +397,32 @@ with open(f'/dbfs/tmp/ap/json_data_artifact_date{date_now_str}.json', 'w') as ou
 
 # COMMAND ----------
 
-# MAGIC %sh ls /dbfs/tmp/ap/
-
-# COMMAND ----------
-
 from mlflow.tracking import MlflowClient
 from mlflow.models.signature import infer_signature
+
 client = MlflowClient()
 
 model_serving_name = "multimodel-serving-fct-pygam-wrapper"
 
 with mlflow.start_run() as run:
     model_info = mlflow.pyfunc.log_model(
-                                          "augmented-fct-model-pygam",
-                                          python_model=MultiModelPyfunc(),
-                                          artifacts={"models_encoded": "/dbfs/tmp/ap/json_data_artifact_date2023_05_15.json"},
-                                        )
+        "augmented-fct-model-pygam",
+        python_model=MultiModelPyfunc(),
+        artifacts={
+            "models_encoded": f"/dbfs/tmp/ap/json_data_artifact_date{date_now_str}.json"
+        },
+    )
     print("Your Run ID is: ", run.info.run_id)
-    
-    mv = mlflow.register_model(f'runs:/{run.info.run_id}/augmented-fct-model-pygam', f"{model_serving_name}")
-    client.transition_model_version_stage(f"{model_serving_name}", mv.version, "Production", archive_existing_versions=True)
 
+    mv = mlflow.register_model(
+        f"runs:/{run.info.run_id}/augmented-fct-model-pygam", f"{model_serving_name}"
+    )
+    client.transition_model_version_stage(
+        f"{model_serving_name}",
+        mv.version,
+        "Production",
+        archive_existing_versions=True,
+    )
 
 # COMMAND ----------
 
@@ -438,14 +443,14 @@ store_df_test = (
                 )
 
 # load and score wrapped model 
-# TO DO 
-## REMOVE HERE RUN ID ? 
 try:
     model = mlflow.pyfunc.load_model(f'runs:/{run.info.run_id}/augmented-fct-model-pygam')
 except:
-    #afbcd5b196a44f8f9bf70b104f872a85
+    #adding here a loaf
     model = mlflow.pyfunc.load_model('runs:/afbcd5b196a44f8f9bf70b104f872a85/augmented-fct-model-pygam')
 
+
+mlflow.pyfunc.load_model(f'runs:/{run.info.run_id}/augmented-fct-model-pygam')
 model.predict(store_df_test.values)
 
 # COMMAND ----------
@@ -474,7 +479,7 @@ store_df_test["Date"] = store_df_test["Date"].astype("str")
 # keep attention that you require a numpy array for data_to_encode
 json_dump = json.dumps(store_df_test.values, cls=NumpyEncoder) 
  
-ds_dict_testing = {
+ds_dict_serving = {
   "dataframe_split": {
     "index":[0],# if you want more here will we [0,1,2] each index corresponds to a DF 
     "columns" : ["input_data"], 
@@ -485,7 +490,7 @@ ds_dict_testing = {
 # COMMAND ----------
 
 ## for testing we are simulating the input shape 
-data_json = json.dumps(ds_dict_testing, allow_nan=True)
+data_json = json.dumps(dds_dict_serving, allow_nan=True)
 model.predict(pd.DataFrame(eval(data_json)["dataframe_split"]['data']))
 
 # COMMAND ----------
