@@ -24,7 +24,7 @@ display(spark.read.table("hive_metastore.ap.hack_ap_rossmann_blog"))
 
 # COMMAND ----------
 
-salesDF = (spark.read.table("hive_metastore.ap.hack_ap_rossmann_time_series")
+salesDF = (spark.read.table("hive_metastore.ap.hack_ap_rossmann_blog")
                 .dropDuplicates()# dropping duplicates if any
                 .select("Store", "Date", "Sales-1", "StateHoliday", "SchoolHoliday")# selecting columns of interest 
                 .withColumnRenamed("Sales-1","Sales")# renaming a column 
