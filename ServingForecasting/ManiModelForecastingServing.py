@@ -1,4 +1,6 @@
 # Databricks notebook source
+# COMMAND ----------
+# DBTITLE 0,kirjjbhgthkbdlkrnjulvulergujbgljdnb
 # MAGIC %md 
 # MAGIC # Description 
 # MAGIC This is an example use case how to forecast and serve multiple independent models under 1 endpoint on Databricks Serving Endpoints. 
@@ -11,23 +13,14 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install pygam
-
-# COMMAND ----------
-
-from ServingForecasting import wrapper_pygam
-from ServingForecasting.aux_scripts import *
-
-# COMMAND ----------
-
-display(spark.read.table("hive_metastore.ap.hack_ap_rossmann_blog"))
+display(spark.read.table("hive_metastore.ap.hack_ap_rossmann_time_series"))
 
 # COMMAND ----------
 
 salesDF = (spark.read.table("hive_metastore.ap.hack_ap_rossmann_blog")
                 .dropDuplicates()# dropping duplicates if any
                 .select("Store", "Date", "Sales-1", "StateHoliday", "SchoolHoliday")# selecting columns of interest 
-                .withColumnRenamed("Sales-1","Sales")# renaming a column 
+                .withColumnRenamed("Sales-1", "Sales")# renaming a column 
           )
           
 display(salesDF)
@@ -41,6 +34,9 @@ display(salesDF.filter("Store = 1001"))
 import mlflow
 from mlflow.models.signature import infer_signature
 from mlflow.tracking import MlflowClient
+
+from ServingForecasting.wrapper_model import *
+from ServingForecasting.aux_scripts import *
 
 client = MlflowClient()
 
@@ -71,20 +67,25 @@ print("Amount of testing points: ",test_sales.count())
 store_id = 1001
 store_df_train = train_sales.filter(f"Store == {store_id}").toPandas()
 store_df_test = test_sales.filter(f"Store == {store_id}").drop("Sales").toPandas()
-model_wrapper = wrapper_pygam.ForecastingModel()
 
-artifact_name = f"model_pygam_{store_id}"
- with mlflow.start_run(run_name=f"testing_pygam_wrapper_{store_id}") as run:
+model_wrapper = ForecastingModelProphet()
+
+artifact_name = f"model_custom_{store_id}"
+ with mlflow.start_run(run_name=f"testing_model_wrapper_{store_id}") as run:
     model_wrapper.fit(store_df_train)
     mlflow.pyfunc.log_model(
                 artifact_path=artifact_name, 
                 python_model= model_wrapper,
-                input_example = store_df_train.iloc[:10,:]
+                #input_example = store_df_train.iloc[:10,:]
                 )
 
 # let's score our first model 
-model_testing = mlflow.pyfunc.load_model(f'runs:/{run.info.run_id}/model_pygam_1001')
+model_testing = mlflow.pyfunc.load_model(f'runs:/{run.info.run_id}/model_custom_1001')
 model_testing.predict(store_df_test)
+
+# COMMAND ----------
+
+
 
 # COMMAND ----------
 
@@ -154,8 +155,9 @@ def fit_final_model_udf(df_pandas: pd.DataFrame) -> pd.DataFrame:
     e.g. Prophet, XgBoost, SKTime etc
 
     """
-    from ServingForecasting import wrapper_pygam
-    model = wrapper_pygam.ForecastingModel()    
+    from ServingForecasting import wrapper_model
+    import prophet as Prophet 
+    model = wrapper_model.ForecastingModelProphet()    
 
     df_pandas = df_pandas.fillna(0).sort_values("Date").copy()
     X = df_pandas[["Store", "Horizon", "Date", "Sales", "StateHoliday", "SchoolHoliday"]]
@@ -166,7 +168,7 @@ def fit_final_model_udf(df_pandas: pd.DataFrame) -> pd.DataFrame:
     n_used = df_pandas.shape[0]
     run_id = df_pandas["run_id"].iloc[0]  # Pulls run ID to do a nested run
     experiment_id = df_pandas["experiment_id"].iloc[0]
-    artifact_name = f"model_pygam_{store}_{horizon}"
+    artifact_name = f"model_custom_{store}_{horizon}"
 
     # Resume the top-level training
     with mlflow.start_run(run_id=run_id, experiment_id=experiment_id) as outer_run:
@@ -259,7 +261,7 @@ display(combinedDF)
 
 # COMMAND ----------
 
-combinedDF.write.format("delta").mode("overwrite").option("overwriteSchema","true").saveAsTable("hive_metastore.ap.hack_ap_rossmann_blog_predictions_pygam")
+combinedDF.write.format("delta").mode("overwrite").option("overwriteSchema","true").saveAsTable("hive_metastore.ap.hack_ap_rossmann_blog_predictions")
 
 # COMMAND ----------
 
@@ -269,7 +271,7 @@ combinedDF.write.format("delta").mode("overwrite").option("overwriteSchema","tru
 # COMMAND ----------
 
 # Reading Back forecasted objects 
-forecast_df = spark.read.table("hive_metastore.ap.hack_ap_rossmann_blog_predictions_pygam")
+forecast_df = spark.read.table("hive_metastore.ap.hack_ap_rossmann_blog_predictions")
 display(forecast_df)
 
 # COMMAND ----------
@@ -357,6 +359,13 @@ class MultiModelPyfunc(mlflow.pyfunc.PythonModel):
         try:
             selected_store = self.select_model(model_input)
             print(f"Selected model {selected_store}")
+            # TO DO
+            # here add a part so that a model would be loaded and kep in a memory if it was already called
+            # MOCK example
+            # if str(selected_store) not in self.models
+            #     self.models[str(selected_store)] = pickle.loads(urlsafe_b64decode(model_context.encode("utf-8")))
+            # models = self.models[str(selected_store)]
+            
             model_context = self.models_context_dict[str(selected_store)]
             model = pickle.loads(urlsafe_b64decode(model_context.encode("utf-8")))
             return model.predict(None, model_input)
@@ -394,11 +403,11 @@ from mlflow.models.signature import infer_signature
 
 client = MlflowClient()
 
-model_serving_name = "multimodel-serving-fct-pygam-wrapper"
+model_serving_name = "multimodel-serving-fct-custom-wrapper"
 
 with mlflow.start_run() as run:
     model_info = mlflow.pyfunc.log_model(
-        "augmented-fct-model-pygam",
+        "augmented-fct-model-custom",
         python_model=MultiModelPyfunc(),
         artifacts={
             "models_encoded": f"/dbfs/tmp/ap/json_data_artifact_date{date_now_str}.json"
@@ -407,7 +416,7 @@ with mlflow.start_run() as run:
     print("Your Run ID is: ", run.info.run_id)
 
     mv = mlflow.register_model(
-        f"runs:/{run.info.run_id}/augmented-fct-model-pygam", f"{model_serving_name}"
+        f"runs:/{run.info.run_id}/augmented-fct-model-custom", f"{model_serving_name}"
     )
     client.transition_model_version_stage(
         f"{model_serving_name}",
@@ -436,13 +445,12 @@ store_df_test = (
 
 # load and score wrapped model 
 try:
-    model = mlflow.pyfunc.load_model(f'runs:/{run.info.run_id}/augmented-fct-model-pygam')
+    model = mlflow.pyfunc.load_model(f'runs:/{run.info.run_id}/augmented-fct-model-custom')
 except:
     #adding here a loaf
-    model = mlflow.pyfunc.load_model('runs:/afbcd5b196a44f8f9bf70b104f872a85/augmented-fct-model-pygam')
+    model = mlflow.pyfunc.load_model('runs:/afbcd5b196a44f8f9bf70b104f872a85/augmented-fct-model-custom')
 
-
-mlflow.pyfunc.load_model(f'runs:/{run.info.run_id}/augmented-fct-model-pygam')
+#mlflow.pyfunc.load_model(f'runs:/{run.info.run_id}/augmented-fct-model-custom')
 model.predict(store_df_test.values)
 
 # COMMAND ----------
@@ -503,7 +511,7 @@ def score_model(ds_dict, token, url):
     raise Exception(f'Request failed with status {response.status_code}, {response.text}')
   return response.json()
 
-score_model(ds_dict_testing, token, "model_serving_point_pygam")
+score_model(ds_dict_testing, token, "model_serving_point")
 
 # COMMAND ----------
 
