@@ -29,7 +29,7 @@ def prepare_mock_dataset(df):
 
 def add_horizons(spark_df, horizons=None,
                  write=None, return_df=None,
-                 table2save="hive_metastore.ap.hack_ap_rossmann_time_series_horizons"):
+                 table2save="hive_metastore.ap.blog_forecasting_horizons"):
     
   if not horizons:
     horizons = 1
@@ -56,16 +56,3 @@ def add_horizons(spark_df, horizons=None,
   if return_df:
     return spark_df_H
 
-
-
-
-def score_model(ds_dict, token, model_point_name):
-  url = f'https://e2-dogfood.staging.cloud.databricks.com/serving-endpoints/{model_point_name}/invocations'
-  headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
-  ds_dict_testing = json.dumps(ds_dict, allow_nan=True)
-  #print(ds_dict_testing)
-  response = requests.request(method='POST', headers=headers, url=url, data=data_json)
- 
-  if response.status_code != 200:
-    raise Exception(f'Request failed with status {response.status_code}, {response.text}')
-  return response.json()

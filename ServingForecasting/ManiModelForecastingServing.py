@@ -1,8 +1,5 @@
 # Databricks notebook source
-
-
 # COMMAND ----------
-
 # DBTITLE 0,kirjjbhgthkbdlkrnjulvulergujbgljdnb
 # MAGIC %md 
 # MAGIC # Description 
@@ -11,7 +8,7 @@
 # MAGIC If you would like to know how to get your data directly from kaggle page using thier API and ingest it into Delta Table on Databricks  check the notebook attached to it `get_data`.
 # MAGIC
 # MAGIC In order to run the notebook on Databricks you require the following:
-# MAGIC - DBR ML 12.2 with multi node (my cluster configuration is 4 nodes 16 CPU each)
+# MAGIC - DBR ML 12.2 with multi node (my cluster configuration is 4 nodes 8 CPU each)
 # MAGIC - being able to install pygam library with pip 
 
 # COMMAND ----------
@@ -20,7 +17,7 @@ display(spark.read.table("hive_metastore.ap.hack_ap_rossmann_time_series"))
 
 # COMMAND ----------
 
-salesDF = (spark.read.table("hive_metastore.ap.hack_ap_rossmann_time_series")
+salesDF = (spark.read.table("hive_metastore.ap.hack_ap_rossmann_blog")
                 .dropDuplicates()# dropping duplicates if any
                 .select("Store", "Date", "Sales-1", "StateHoliday", "SchoolHoliday")# selecting columns of interest 
                 .withColumnRenamed("Sales-1", "Sales")# renaming a column 
@@ -477,7 +474,8 @@ class NumpyEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
  
 
-# ADD A PARSING FUNCTION from Datatime to STR (in real time we will pass a string but our input data as of now is a datetime object)
+# Adding a parsing functionfrom datetime to a  string 
+# in real time we will pass a string but our input data as of now is a datetime object
 store_df_test["Date"] = store_df_test["Date"].astype("str")
 # keep attention that you require a numpy array for data_to_encode
 json_dump = json.dumps(store_df_test.values, cls=NumpyEncoder) 
