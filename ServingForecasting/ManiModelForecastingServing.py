@@ -1,5 +1,4 @@
 # Databricks notebook source
-# COMMAND ----------
 # DBTITLE 0,kirjjbhgthkbdlkrnjulvulergujbgljdnb
 # MAGIC %md 
 # MAGIC # Description 
@@ -9,7 +8,6 @@
 # MAGIC
 # MAGIC In order to run the notebook on Databricks you require the following:
 # MAGIC - DBR ML 12.2 with multi node (my cluster configuration is 4 nodes 8 CPU each)
-# MAGIC - being able to install pygam library with pip 
 
 # COMMAND ----------
 
@@ -113,7 +111,7 @@ model_testing.predict(store_df_test)
 # MAGIC %md 
 # MAGIC ### Ingesting a Horizon Notion 
 # MAGIC
-# MAGIC Our Pygam exmaple is a simplistic example that does not take any `horizon` information, but there are a lot of models such a Prophet that requires you to provide the forecasting_Horizon. 
+# MAGIC There are a lot of models such a Prophet that requires you to provide the forecasting_Horizon. 
 # MAGIC
 # MAGIC For this example notebook, I will create a Horizon column just to synthetically increase the size of the dataset and to show you how simply you can achieve results by using Spark when the complexity of your forecasting colution is growing. 
 
@@ -148,9 +146,9 @@ def fit_final_model_udf(df_pandas: pd.DataFrame) -> pd.DataFrame:
     "run_id", "experiment_id" -> Column that are necessary for logging under MLFlow Artifact 
     
     NOTE: 
-    In our case we are using a very simple model - PyGam Linear, it does not contain parameters,
-    hence we may not even care of logging the model into the mlflow for each fit.
-    The only what we need to keep track is the version of the package under. 
+    In a case you are using a very simple model - Linear, it does not contain parameters,
+    hence you may not even care of logging the model into the mlflow for each fit.
+    The only what you need to keep track is the version of the package under. 
     Nevertheless we are going to demonstrate how this can be done if you require to run a more complex model,
     e.g. Prophet, XgBoost, SKTime etc
 
