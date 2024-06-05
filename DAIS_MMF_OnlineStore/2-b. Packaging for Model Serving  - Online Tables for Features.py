@@ -1,20 +1,6 @@
 # Databricks notebook source
-# MAGIC
 # MAGIC %md 
-# MAGIC The code has been done to follow the following pattern: evoke 1 object with all pretrained models that is based on the ID of interest that contains independently pretrained forecasting models.
-# MAGIC
-# MAGIC
-# MAGIC Step per step approach: 
-# MAGIC - you train your models independently and store them under Experiment of MlFlow with their corresponding RunIDs
-# MAGIC   - each experiment correspond to a FIT of your model 
-# MAGIC     - we would initiate a new experiment each time we are recreating a new model(using FIT)
-# MAGIC   - each run ID = 1 model
-# MAGIC
-# MAGIC
-# MAGIC
-# MAGIC
-# MAGIC **Keep in mind** that if you want to do only `fit().predict()` at each evokation you need to serialize only 1 model where you include fit under the `.predict` and you dont have to serialize dictionary of artifacts since you do not require an object per model (it will be created at each fit during the serving). <br>
-# MAGIC There are a few things to keep in mind with that approach: 
+# MAGIC ## Publishing our Tables online
 # MAGIC   
 
 # COMMAND ----------

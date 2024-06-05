@@ -1,6 +1,6 @@
 # Databricks notebook source
 # MAGIC %md 
-# MAGIC ## Description 
+# MAGIC ## Get your data
 
 # COMMAND ----------
 

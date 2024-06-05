@@ -1,15 +1,6 @@
 # Databricks notebook source
 # MAGIC %md 
-# MAGIC
-# MAGIC > **Chain of thoughts:** The code follows the structure below:
-# MAGIC >- create a `pyfunc` class that allows calling the models into one endpoint. this class managed the 100K's of models.
-# MAGIC >- store the models in the `sales_models_fs` (this table is also stored as artifact on the model registry for reference).
-# MAGIC >- register a Feature Spec table for the model table so that the models can be called from the predict when required (offline or online).
-# MAGIC >- retrain when required the models and update the model table.
-# MAGIC >- sync the offline delta table of the models to the online table.
-# MAGIC >- the individual models **are not** recorded in MLFlow to reduce overhead. this is OK for 10's of models but not in this case where we have 100K's of models.
-# MAGIC
-# MAGIC **Keep in mind** that if you want to do only `fit().predict()` at each evocation you need to serialize only 1 model where you include fit under the `.predict` and you dont have to serialize dictionary of artifacts since you do not require an object per model (it will be created at each fit during the serving). This approach does not allow to have a traceability of the model and reusing it between offline and online forecasting
+# MAGIC ## Example 3.1
 
 # COMMAND ----------
 
