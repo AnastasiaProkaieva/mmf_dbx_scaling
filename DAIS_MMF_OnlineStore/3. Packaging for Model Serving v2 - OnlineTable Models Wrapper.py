@@ -157,7 +157,6 @@ with mlflow.start_run(run_name = "forecast_wrapper") as run:
       model = MultiModelPyfunc(),
       flavor= mlflow.pyfunc,
       pip_requirements= reqs,
-      #artifacts= artifacts, ## we do not pass any artifact in this case 
       training_set=features_set,
       registered_model_name=model_name,
       code_path = ['wrapper_model.py']

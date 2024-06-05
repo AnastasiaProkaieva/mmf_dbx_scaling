@@ -33,15 +33,6 @@ from wrapper_model import *
 
 # COMMAND ----------
 
-model_list.head()
-
-# COMMAND ----------
-
-
-model_list[["encoded_model"]].head(2).to_json()
-
-# COMMAND ----------
-
 from datetime import date
 import pickle
 import zlib
@@ -215,3 +206,7 @@ ds_dict
 
 response = evoke_serving_endpoint(model_endpoint_name, ds_dict)
 pd.DataFrame(response.json()['predictions'] )
+
+# COMMAND ----------
+
+
