@@ -11,14 +11,16 @@
 
 # COMMAND ----------
 
-display(spark.read.table("hive_metastore.ap.hack_ap_rossmann_time_series"))
+catalog_name = "ap"
+schema_name = "ts"
+display(spark.read.table(f"{catalog_name}.{schema_name}.train_data"))
 
 # COMMAND ----------
 
-salesDF = (spark.read.table("hive_metastore.ap.hack_ap_rossmann_blog")
+salesDF = (spark.read.table(f"{catalog_name}.{schema_name}.train_data")
                 .dropDuplicates()# dropping duplicates if any
-                .select("Store", "Date", "Sales-1", "StateHoliday", "SchoolHoliday")# selecting columns of interest 
-                .withColumnRenamed("Sales-1", "Sales")# renaming a column 
+                .select("Store", "Date", "Sales", "StateHoliday", "SchoolHoliday","Open","Promo")# selecting columns of interest 
+                #.withColumnRenamed("Sales-1", "Sales")# renaming a column 
           )
           
 display(salesDF)
@@ -35,6 +37,8 @@ from mlflow.tracking import MlflowClient
 
 from ServingForecasting.wrapper_model import *
 from ServingForecasting.aux_scripts import *
+
+model_wrapper = ForecastingModelProphet()
 
 client = MlflowClient()
 
@@ -63,12 +67,14 @@ print("Amount of testing points: ",test_sales.count())
 
  # let's try with one store before scaling this to all thouthands stores 
 store_id = 1001
-store_df_train = train_sales.filter(f"Store == {store_id}").toPandas()
-store_df_test = test_sales.filter(f"Store == {store_id}").drop("Sales").toPandas()
-
-model_wrapper = ForecastingModelProphet()
+store_df_train = (train_sales
+                  .filter(f"Store == {store_id}")
+                  .withColumn("Horizon", f.lit(1))
+                  .toPandas())
+store_df_test = test_sales.filter(f"Store == {store_id}").withColumn("Horizon", f.lit(1)).drop("Sales").toPandas()
 
 artifact_name = f"model_custom_{store_id}"
+
  with mlflow.start_run(run_name=f"testing_model_wrapper_{store_id}") as run:
     model_wrapper.fit(store_df_train)
     mlflow.pyfunc.log_model(
@@ -219,6 +225,10 @@ df_full.count()
 
 # COMMAND ----------
 
+
+
+# COMMAND ----------
+
 # MAGIC %md 
 # MAGIC ### Calling our ApplyInPandas
 
@@ -228,7 +238,7 @@ import pyspark.sql.types as t
 import pyspark.sql.functions as F 
 
 trainReturnSchema = t.StructType([
-  t.StructField("Store", t.StringType()),  # unique store ID
+  t.StructField("Store", t.IntegerType()),  # unique store ID
   t.StructField("Horizon", t.IntegerType()),  # unique horizon ID
   t.StructField("n_used", t.IntegerType()),    # number of records used in training
   t.StructField("model_path", t.StringType()), # path to the model for a given combination
@@ -256,6 +266,10 @@ display(combinedDF)
 
 # MAGIC %md 
 # MAGIC #### Saving results under Delta Table
+
+# COMMAND ----------
+
+
 
 # COMMAND ----------
 

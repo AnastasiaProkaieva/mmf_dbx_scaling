@@ -2,11 +2,17 @@
 # MAGIC %md 
 # MAGIC # What's new in 2024 from Databricks 🤘
 # MAGIC
-# MAGIC With the advance of LLM there are new features that are available and can be used for the gas forecasting and other forecasting platforms. Namely these are:
-# MAGIC - online stores (low latency serving of Delta table - Features, similar to Cosmos and Dynamo)
+# MAGIC With the advance of LLM there are new features that are available and can be used for the forecasting  platforms. Namely these are:
+# MAGIC - online stores (low latency Database mserving of Delta table - Features, similar to Cosmos and Dynamo)
 # MAGIC - features specs (using delta tables within a model for offline and online tables, published Online Store)
 # MAGIC
 # MAGIC 👉 [documentation](https://docs.databricks.com/en/machine-learning/feature-store/online-tables.html)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC
+# MAGIC ## 1. Installing and importing required libraries 
 
 # COMMAND ----------
 
@@ -15,21 +21,10 @@
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC
-# MAGIC # 1. Installing and importing required libraries 
-
-# COMMAND ----------
-
-# MAGIC %run ./global_code_import 
-
-# COMMAND ----------
-
 from aux_scripts import *
 from wrapper_model import *
 
-# setting up MLFlow clients
-client = MlflowClient()
+# COMMAND ----------
 
 ## Set MLFlow Experiment 
 ct = datetime.datetime.now()
@@ -37,7 +32,6 @@ date_now_str = f"{ct.year}_{str(ct.month).zfill(2)}_{ct.day}"
 # Setting our experiment to kep track of our model with MlFlow 
 experiment_name = "forecasting_dais"
 experiment_path = f"/Shared/{experiment_name}_rundayis_{date_now_str}"
-
 experiment_fct = create_set_mlflow_experiment(experiment_path)
 
 # COMMAND ----------
@@ -51,6 +45,36 @@ experiment_fct = create_set_mlflow_experiment(experiment_path)
 # MAGIC - Features are looked up rather than being computed for each of the models
 # MAGIC
 # MAGIC Features are just regular delta tables with a primary keys - from then, we can synchronise those offline delta tables to an online store so that they can be accessed with low latency.
+
+# COMMAND ----------
+
+fe = FeatureEngineeringClient()
+
+label_df = (spark
+               .table(f"{database_name}.main_sales_fs")
+               .select("Store","Date","Sales"))
+
+feature_lookups = [ 
+  FeatureLookup(
+      table_name=f"{database_name}.main_features_sales_fs", 
+      lookup_key=["Store", "Date"],
+      feature_names=["SchoolHoliday", "Promo"]
+  ),
+  FeatureLookup(
+      table_name=f"{database_name}.extra_sales_weather_fs",  
+      lookup_key=["Store", "Date"],
+      feature_names=["Mean_TemperatureC"]
+  ), 
+]
+
+training_set = fe.create_training_set(
+    df=label_df,
+    feature_lookups=feature_lookups,
+    label='Sales',
+)
+
+training_df = training_set.load_df()
+
 
 # COMMAND ----------
 
@@ -114,8 +138,8 @@ model_testing.predict(store_df_test).iloc[:10,:]
 # MAGIC %md 
 # MAGIC ### Part 2.3 Increase your training dataset (Optional)
 # MAGIC
-# MAGIC My dataset was quite small, only 1115 individual Stores but you would have way more most of the time. To demonstrate this indeed is important to distribute training I will increase the training dataset by adding GroupBy over a State and also over a new varioable call - Horizon. 
-# MAGIC This will increase the dataset significantly.
+# MAGIC My dataset was quite small, only 1115 individual Stores but you would have way more most of the time. To demonstrate this indeed is important to distribute training you can increase the training dataset by adding GroupBy over a State and also over a new varioable call - Horizon. 
+# MAGIC This will increase the dataset significantly. 
 
 # COMMAND ----------
 
@@ -137,19 +161,6 @@ df_full.count()
 
 # COMMAND ----------
 
-# # Repartition the dataset to minimize shuffle and remove AQE to speed up the training (AQE is made for improving data query -- not ML training)
-# # Get the number of workers for fixed cluster - if you use autoscaling - which is not recommended for SLA - you need to deal with that differently
-# # If the cluster is single node - then we take 1 for the driver
-# number_workers = max(int(spark.conf.get("spark.databricks.clusterUsageTags.clusterWorkers")), 1)
-# spark.conf.set("spark.sql.adaptive.enabled", False)
-
-# # Change the shuffle partitions in the case of a cluster. For single node leave as default.
-# spark.conf.set("spark.sql.shuffle.partitions", sc.defaultParallelism * number_workers) # (the tasks available = CPU x Workers) 
-
-# logger.info(f"the parallelism used will be: {sc.defaultParallelism}")
-
-# COMMAND ----------
-
 from datetime import date
 import pickle
 import zlib
@@ -166,18 +177,11 @@ def fit_final_model_udf(df_pandas: pd.DataFrame) -> pd.DataFrame:
     "run_id", "experiment_id" -> Column that are necessary for logging under MLFlow Artifact 
     
     NOTE: 
-    In a case you are using a very simple model - Linear, it does not contain parameters,
-    hence you may not even care of logging the model into the mlflow for each fit.
-    The only what you need to keep track is the version of the package under. 
-    Nevertheless we are going to demonstrate how this can be done if you require to run a more complex model,
-    e.g. Prophet, XgBoost, SKTime etc
-
+    We are going to demonstrate how you can track your model if you require to do so. 
     """
     #starting timer
     start_time = time.time()
-
-    #from ServingForecasting import wrapper_model
-    #model = wrapper_model.ForecastingModelProphet()  
+ 
     import prophet as Prophet 
     model = ForecastingModelProphet()
     horizon = model.horizon
@@ -216,8 +220,6 @@ def fit_final_model_udf(df_pandas: pd.DataFrame) -> pd.DataFrame:
            
     # we are going to encode our model 
     model_encoder = str(urlsafe_b64encode(pickle.dumps(model)).decode("utf-8"))
-    # Place the pkl under the main class for simplicity 
-    #model_encoder = model.pkl() 
     
     # Create a return pandas DataFrame that matches the schema above
     returnDF = pd.DataFrame(
@@ -226,24 +228,6 @@ def fit_final_model_udf(df_pandas: pd.DataFrame) -> pd.DataFrame:
         )
 
     return returnDF
-
-# COMMAND ----------
-
-# %sql
-# DROP TABLE IF EXISTS ${catalog}.${schema}.sales_model_table;
-# -- Create the model table that will hold all teh models and make sure it can be use as a feature (Primary Key Not Null)
-# CREATE TABLE IF NOT EXISTS ${catalog}.${schema}.sales_model_table
-# (
-#   Store STRING NOT NULL PRIMARY KEY COMMENT 'This is the Store reference ID',
-#   encoded_model STRING COMMENT 'The model artifact cloudpicked in base64',
-#   training_date DATE COMMENT 'Date at which the training was done'
-# )
-# COMMENT 'This table holds all the models used for Sales forecasting'
-# TBLPROPERTIES (delta.enableChangeDataFeed = true);
-
-# -- Adding tags to the table
-# ALTER TABLE ${catalog}.${schema}.sales_model_table
-# SET TAGS ('team'='sales', 'project'='forecast', 'type'='model_table')
 
 # COMMAND ----------
 
@@ -272,32 +256,38 @@ with mlflow.start_run() as run:
   
 
 modelDirectoriesDF.select("Store", "encoded_model", "training_date").write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(f"{database_name}.sales_model_table_main")
+
 #modelDirectoriesDF.display()
 
 # COMMAND ----------
 
-# ## You can or save it back with the main Features, or keep only models 
-# forecastDF = (df_full.join(modelDirectoriesDF, on=["Store"], how="left"))
-
-# # COMMAND ----------
-
-# def apply_model_decode(df_pandas: pd.DataFrame) -> pd.DataFrame:
-#     # Get model path from metadata
-#     payload = df_pandas["encoded_model"].iloc[0]
-#     features = ["Store", "Horizon", "Date", "StateHoliday", "SchoolHoliday"]
-#     # Subset inference set to features
-#     X = df_pandas[features].sort_values("Date")
-#     # Load and apply model to inference set
-#     model = pickle.loads(urlsafe_b64decode(payload.encode("utf-8")))
-#     #model = mlflow.pyfunc.load_model(model_path)
-#     return_df = model.predict(None, X) # should return a DF 
-#     return_df["Date"] = return_df["Date"].astype("str")
-#     return return_df[["Store", "Horizon", "Date", "Sales_Pred"]]
-
-# # COMMAND ----------
-
-# predictionsDF = (forecast_df.groupBy("Store")
-#                  .applyInPandas(apply_model_decode, schema="Store string, Horizon integer, Date string, Sales_Pred float"))
+# MAGIC %md 
+# MAGIC
+# MAGIC We do not require to predict all our stores in batch but you would definitely need to test and meassure the performance. Here is the example how to do this: 
+# MAGIC
+# MAGIC ```
+# MAGIC ## You can or save it back with the main Features, or keep only models 
+# MAGIC forecastDF = (df_full.join(modelDirectoriesDF, on=["Store"], how="left"))
+# MAGIC
+# MAGIC def apply_model_decode(df_pandas: pd.DataFrame) -> pd.DataFrame:
+# MAGIC     # Get model path from metadata
+# MAGIC     payload = df_pandas["encoded_model"].iloc[0]
+# MAGIC     features = ["Store", "Date", "Sales", "SchoolHoliday", "Promo", "Mean_TemperatureC"]
+# MAGIC     # Subset inference set to features
+# MAGIC     X = df_pandas[features].sort_values("Date")
+# MAGIC     # Load and apply model to inference set
+# MAGIC     model = pickle.loads(urlsafe_b64decode(payload[0].encode("utf-8")))
+# MAGIC     #model = mlflow.pyfunc.load_model(model_path)
+# MAGIC     return_df = model.predict(None, X) # should return a DF 
+# MAGIC     return_df["Date"] = return_df["Date"].astype("str")
+# MAGIC     return return_df[["Store", "Horizon", "Date", "Sales_Pred"]]
+# MAGIC
+# MAGIC
+# MAGIC predictionsDF = (forecast_df.groupBy("Store")
+# MAGIC                  .applyInPandas(apply_model_decode, 
+# MAGIC                  schema="Store string, Horizon integer, Date string, Sales_Pred float"))
+# MAGIC
+# MAGIC ``` 
 
 # COMMAND ----------
 
@@ -306,37 +296,6 @@ try:
   park.sql(f"ALTER TABLE {catalog}.{schema}.sales_model_table_main ADD CONSTRAINT sales_model_table_main_pk PRIMARY KEY(Store);")
 except:
   print("Yourt table already contains the restriction")
-
-# COMMAND ----------
-
-# import pyspark.sql.types as t
-# import pyspark.sql.functions as F 
-
-# trainReturnSchema = t.StructType([
-#   t.StructField("Store", t.StringType()),  # unique store ID
-#   #t.StructField("Horizon", t.IntegerType()),  # unique horizon ID
-#   t.StructField("model_path", t.StringType()), # path to the model for a given combination
-#   t.StructField("encoded_model", t.StringType()), # encoded string of the model 
-# ])
-
-# experiment_id = experiment_fct.experiment_id
-
-# with mlflow.start_run() as run:
-#   run_id = run.info.run_id
-  
-#   modelDirectoriesDF = (df_full
-#                         .withColumn("run_id", F.lit(run_id))
-#                         .withColumn("experiment_id", F.lit(experiment_id))  
-#                         .groupby("Store")
-#                         .applyInPandas(fit_final_model_udf, schema=trainReturnSchema)
-#                         .withColumn("training_date", F.current_date())
-#                        )
-  
-# ## You can or save it back with the main Features, or keep only models 
-# #combinedDF = (df_full.join(modelDirectoriesDF, on=["Store"], how="left"))
-
-# modelDirectoriesDF.select("Store", "encoded_model", "training_date").write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(f"{database_name}.sales_model_table")
-
 
 # COMMAND ----------
 

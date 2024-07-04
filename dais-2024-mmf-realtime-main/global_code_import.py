@@ -1,5 +1,4 @@
 # Databricks notebook source
-dbutils.widgets.dropdown("reset_tables", "False", ["True", "False"], label="Set reset status for tables")
 dbutils.widgets.text("catalog", "ap")
 dbutils.widgets.text("schema", "forecast")
 

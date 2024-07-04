@@ -1,10 +1,13 @@
 # Databricks notebook source
 # MAGIC %md 
 # MAGIC ## Get your data
-
-# COMMAND ----------
-
-
+# MAGIC
+# MAGIC We are using a dataset from a known forecasting competition on Kaggle https://www.kaggle.com/competitions/rossmann-store-sales with it's extended version. 
+# MAGIC
+# MAGIC
+# MAGIC You will learn: 
+# MAGIC - ingesting data into Delta tables 
+# MAGIC - creating a Feature Store Tables 
 
 # COMMAND ----------
 
@@ -12,7 +15,6 @@
 
 # COMMAND ----------
 
-dbutils.widgets.dropdown("reset_tables", "False", ["True", "False"], label="Set reset status for tables")
 dbutils.widgets.text("catalog", "ap")
 dbutils.widgets.text("schema", "forecast")
 dbutils.widgets.text("volume", "dais_ts")
@@ -51,37 +53,13 @@ MAIN_DIR = volume_path
 # COMMAND ----------
 
 
-## Currently this one stopped working, got it manually and imported into the Volumes
 !mkdir {MAIN_DIR}
 !kaggle datasets download pratyushakar/rossmann-store-sales -p {MAIN_DIR} --force
 !kaggle datasets download dromosys/rossmann-store-extra -p {MAIN_DIR} --force
 !ls {MAIN_DIR}
-
-
-# COMMAND ----------
-
 !unzip {MAIN_DIR}/rossmann-store-sales.zip -d {MAIN_DIR}
 !unzip {MAIN_DIR}/rossmann-store-extra.zip -d {MAIN_DIR}
 
-# COMMAND ----------
-
-!head {MAIN_DIR}/train.csv
-
-# COMMAND ----------
-
-!head {MAIN_DIR}/test.csv
-
-# COMMAND ----------
-
-!head {MAIN_DIR}/store_states.csv
-
-# COMMAND ----------
-
-!head {MAIN_DIR}/weather.csv
-
-# COMMAND ----------
-
-!head {MAIN_DIR}/store.csv
 
 # COMMAND ----------
 

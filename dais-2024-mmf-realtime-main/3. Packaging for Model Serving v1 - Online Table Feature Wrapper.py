@@ -1,6 +1,6 @@
 # Databricks notebook source
 # MAGIC %md 
-# MAGIC ## Example 3.1
+# MAGIC ## Example 3.1 - Call pre-trained models from Online Store as External Features 
 
 # COMMAND ----------
 
@@ -22,7 +22,7 @@ from wrapper_model import *
 # MAGIC %md
 # MAGIC ## 3.1 Build the Wrapper Multimodel Class
 # MAGIC
-# MAGIC > **chain of thoughts:** this wrapper class will build a in memory dictionnary that will act as a lookup table for the models. When runnning a predict, we will look first in this table - if not present, we will look in the feature table and pull in the model, if not present either we will train the model pulling the historical data (will be implemented later) and if the data is provided - we will by pass this and retrain the model. We will not load the model from the artifact like we use to do it to make it scalable to any use cases that require multi-model serving for fine grained forecasting.
+# MAGIC This wrapper class will build a in memory dictionnary that will act as a lookup table for the models. When runnning a predict, we will look first in this table - if not present, we will look in the feature table and pull in the model, if the data is provided - we will by pass this and retrain the model. We will not load the model from the artifact like we will do in Part 3 to make it scalable to any use cases that require multi-model serving for fine grained forecasting.
 
 # COMMAND ----------
 
@@ -161,8 +161,8 @@ class MultiModelPyfunc(mlflow.pyfunc.PythonModel):
 # COMMAND ----------
 
 # url used to send the request to your model from the serverless endpoint
-db_host = dbutils.secrets.get("mlaction", "rag_sp_host")
-db_token = dbutils.secrets.get("mlaction", "rag_sp_token")
+db_host = dbutils.secrets.get("dais_mmf", "sp_host")
+db_token = dbutils.secrets.get("dais_mmf", "sp_token")
 
 os.environ['DATABRICKS_TOKEN'] = db_token
 os.environ['DATABRICKS_HOST'] = db_host
@@ -239,7 +239,6 @@ predict_df.display()
 # MAGIC - serialized our models and stored them under Delta Table 
 # MAGIC - published our Delta table under Online Store 
 # MAGIC - created a wrapper that can connect to our Online Store and store models that we have already "requested" 
-# MAGIC - 
 
 # COMMAND ----------
 

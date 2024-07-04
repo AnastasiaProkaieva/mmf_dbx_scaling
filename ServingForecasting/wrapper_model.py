@@ -23,7 +23,7 @@ class ForecastingModelProphet(mlflow.pyfunc.PythonModel):
         # keep your input ordered, Pandas DF are not like Spark and they dont work on a schema but on numbering
         model_input = pd.DataFrame(
             data_input,
-            columns=["Store", "Horizon", "Date", "Sales", "StateHoliday", "SchoolHoliday"],
+            columns=["Store", "Date", "Sales", "StateHoliday", "SchoolHoliday", "Horizon"],
         ).fillna(0)
         # becasue it's forecasting I sort per date
         model_input.sort_values("Date", inplace=True)
@@ -50,7 +50,7 @@ class ForecastingModelProphet(mlflow.pyfunc.PythonModel):
         # here we are accepting the fact that our input might be a numpy array
         # keep your input ordered, Pandas DF are not like Spark and they dont work on a schema but on numbering
         model_input = pd.DataFrame(
-            data_input, columns=["Store", "Horizon", "Date", "StateHoliday", "SchoolHoliday"])
+            data_input, columns=["Store", "Date", "StateHoliday", "SchoolHoliday", "Horizon"])
         model_input.sort_values("Date", inplace=True)
         model_input.rename(columns={"Date": "ds"}, inplace=True)
         try:

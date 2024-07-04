@@ -1,6 +1,13 @@
 # Databricks notebook source
 # MAGIC %md 
 # MAGIC ## Publishing our Tables online
+# MAGIC
+# MAGIC We are going to publish our Feature Tables Online, so that we could access features and join them in real time. 
+# MAGIC You have 2 options how to call those features:
+# MAGIC - publish online Feature Spec to call features externally
+# MAGIC   - using Model Serving and can be seeing as Feature Serving, can be called from outside 
+# MAGIC - publish your FS table into an Online Table, and call your features with Model Serving 
+# MAGIC   - features will be automatically looked-up by Model Serving 
 # MAGIC   
 
 # COMMAND ----------
@@ -20,8 +27,8 @@ from aux_scripts import *
 # COMMAND ----------
 
 # url used to send the request to your model from the serverless endpoint
-db_host = dbutils.secrets.get("mlaction", "rag_sp_host")
-db_token = dbutils.secrets.get("mlaction", "rag_sp_token")
+db_host = dbutils.secrets.get("dais_mmf", "sp_host")
+db_token = dbutils.secrets.get("dais_mmf", "sp_token")
 
 os.environ['DATABRICKS_TOKEN'] = db_token
 os.environ['DATABRICKS_HOST'] = db_host
@@ -71,18 +78,6 @@ if response.status_code != 200:
 
 model_example = response.json()["outputs"][0].get('encoded_model')
 pprint(pickle.loads(urlsafe_b64decode(model_example[0].encode("utf-8"))))
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-
-
-# COMMAND ----------
-
-
 
 # COMMAND ----------
 
