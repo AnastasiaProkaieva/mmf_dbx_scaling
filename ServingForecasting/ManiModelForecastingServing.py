@@ -1,5 +1,5 @@
 # Databricks notebook source
-# DBTITLE 0,kirjjbhgthkbdlkrnjulvulergujbgljdnb
+# DBTITLE 0,
 # MAGIC %md 
 # MAGIC # Description 
 # MAGIC This is an example use case how to forecast and serve multiple independent models under 1 endpoint on Databricks Serving Endpoints. 
@@ -65,7 +65,7 @@ print("Amount of testing points: ",test_sales.count())
 
 # COMMAND ----------
 
- # let's try with one store before scaling this to all thouthands stores 
+ # let's try with one store before scaling this to all thousands of stores 
 store_id = 1001
 store_df_train = (train_sales
                   .filter(f"Store == {store_id}")
@@ -133,7 +133,7 @@ display(train_horizons)
 # COMMAND ----------
 
 # MAGIC %md 
-# MAGIC ### Creating Main Forecating Fit Func 
+# MAGIC ### Creating Main Forecasting Fit Func 
 
 # COMMAND ----------
 
@@ -145,17 +145,17 @@ from base64 import urlsafe_b64decode, urlsafe_b64encode
 
 def fit_final_model_udf(df_pandas: pd.DataFrame) -> pd.DataFrame:
     """
-    Your input DataFrame will have following columns as an input:
+    Your input DataFrame will have the following columns as input:
 
-    "Store", "State" -> Columns on which we are going to preform a groupBy to seperate our individual datasets
+    "Store", "State" -> Columns on which we are going to preform a groupBy to separate our individual datasets
     "Date", "Sales", "StateHoliday", "SchoolHoliday" -> Columns that will be used for Training
     "run_id", "experiment_id" -> Column that are necessary for logging under MLFlow Artifact 
     
     NOTE: 
-    In a case you are using a very simple model - Linear, it does not contain parameters,
+    In case you are using a very simple model - Linear, it does not contain parameters,
     hence you may not even care of logging the model into the mlflow for each fit.
-    The only what you need to keep track is the version of the package under. 
-    Nevertheless we are going to demonstrate how this can be done if you require to run a more complex model,
+    The only thing you need to keep track of is the version of the package. 
+    Nevertheless, we are going to demonstrate how this can be done if you require to run a more complex model,
     e.g. Prophet, XgBoost, SKTime etc
 
     """
