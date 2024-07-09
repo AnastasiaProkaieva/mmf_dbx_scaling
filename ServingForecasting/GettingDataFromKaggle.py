@@ -4,8 +4,8 @@
 # COMMAND ----------
 
 import os
-os.environ["KAGGLE_USERNAME"] = "anaprok"
-os.environ["KAGGLE_KEY"] = "d9646c99ac731ff492175c107c4b8133"
+os.environ["KAGGLE_USERNAME"] = "YOUR_USERNAME"
+os.environ["KAGGLE_KEY"] = "YOUR_TOKEN"
 
 # COMMAND ----------
 
