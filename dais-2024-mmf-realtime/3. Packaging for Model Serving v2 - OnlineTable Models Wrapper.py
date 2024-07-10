@@ -164,8 +164,8 @@ with mlflow.start_run(run_name = "forecast_wrapper") as run:
 logged_model = f'runs:/{run.info.run_id}/model/data/feature_store/raw_model'
 model_version = "3"
 
-main_score_df_no_features = training_set.load_df().select("Store","Date")
-main_score_df_features = training_set.load_df().drop("Sales")
+main_score_df_no_features = features_set.load_df().select("Store","Date")
+main_score_df_features = features_set.load_df().drop("Sales")
 
 # let's try with one store before scaling this to all thouthands stores 
 store_id = "1"
